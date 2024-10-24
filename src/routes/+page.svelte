@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { processConversation } from '$lib/openai';
   import { marked } from 'marked';
+  import { initializeProlog } from '$lib/prolog';
 
   let userQuestion = '';
   let chatHistory = [];
@@ -9,6 +10,7 @@
   let chatContainer;
 
   onMount(() => {
+    initializeProlog();
     scrollToBottom();
   });
 

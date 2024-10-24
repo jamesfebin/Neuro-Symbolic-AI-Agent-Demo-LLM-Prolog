@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { queryProlog } from '$lib/prolog';
 
 const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
@@ -12,13 +13,15 @@ export async function processConversation(userQuestion, previousMessages = []) {
     Your task is to:
     1. Understand the user's question
     2. Generate an appropriate Prolog query to answer the question
-    3. Interpret the results of the Prolog query
+    3. Execute the Prolog query using function calling (Mandatory)
     4. Provide a helpful response to the user
     5. Assume the student doesn't have a student id, so you will have to ask for the student id and other information about the student that's required in defining the student. Assume student won't be in database by default.
 
+    Mandatorly respond when questions about college things after executing the prolog query. Otherwise, you will hallucinate.
     Use the following Prolog Code Context:
 
    % Programs and their base attributes
+% Programs and their base attributes
 program(btech_cs, engineering, computer_science).
 program(btech_ai, engineering, artificial_intelligence).
 program(btech_robotics, engineering, robotics).
@@ -38,107 +41,85 @@ base_fees(mba_tech, 20000).
 base_fees(mba_finance, 19000).
 base_fees(mba_analytics, 21000).
 
-% Academic scores
-academic_score(StudentId, board_12th, Percentage, Board).
-academic_score(StudentId, entrance, Score, ExamName).
-academic_score(StudentId, graduation, Percentage, Stream).
-work_experience(StudentId, Years, Domain).
-
-% Complex fee calculation based on multiple factors
-calculate_fees(StudentId, Program, FinalFees) :-
+% Calculate fees based on multiple factors
+calculate_fees(Program, Entrance_Score, Nationality, Family_Income, FinalFees) :-
     base_fees(Program, BaseFee),
-    scholarship_deduction(StudentId, Program, ScholarshipAmount),
-    foreign_student_multiplier(StudentId, Multiplier),
-    economic_background_adjustment(StudentId, EconomicAdjustment),
+    scholarship_deduction(Entrance_Score, ScholarshipAmount),
+    foreign_student_multiplier(Nationality, Multiplier),
+    economic_background_adjustment(Family_Income, EconomicAdjustment),
     FinalFees is (BaseFee * Multiplier - ScholarshipAmount) * EconomicAdjustment.
 
 % Scholarship rules
-scholarship_deduction(StudentId, Program, Amount) :-
-    academic_score(StudentId, entrance, Score, _),
+scholarship_deduction(Score, Amount) :-
     (Score > 95 -> Amount is 5000;
      Score > 90 -> Amount is 3000;
      Score > 85 -> Amount is 2000;
      Amount is 0).
 
 % Foreign student fee multiplier
-foreign_student_multiplier(StudentId, Multiplier) :-
-    student_nationality(StudentId, Nationality),
+foreign_student_multiplier(Nationality, Multiplier) :-
     (Nationality = indian -> Multiplier is 1;
      Nationality = saarc -> Multiplier is 1.5;
      Multiplier is 2).
 
 % Economic background adjustment
-economic_background_adjustment(StudentId, Adjustment) :-
-    family_income(StudentId, Income),
+economic_background_adjustment(Income, Adjustment) :-
     (Income < 10000 -> Adjustment is 0.6;
      Income < 30000 -> Adjustment is 0.8;
      Adjustment is 1).
 
 % Complex admission eligibility rules
-eligible_for_admission(StudentId, Program) :-
+eligible_for_admission(Program, Board_12th_Percentage, Entrance_Score, Grad_Percentage, Math_Score, Physics_Score, CS_Score, Work_Exp_Years, Work_Domain) :-
     program(Program, Stream, Specialization),
-    meets_basic_criteria(StudentId, Stream),
-    meets_specific_criteria(StudentId, Program),
-    meets_special_requirements(StudentId, Specialization),
-    not(has_backlog(StudentId)).
+    meets_basic_criteria(Stream, Board_12th_Percentage, Entrance_Score, Grad_Percentage),
+    meets_specific_criteria(Stream, Math_Score, Physics_Score, Work_Exp_Years, Work_Domain),
+    meets_special_requirements(Specialization, Math_Score, CS_Score, Work_Exp_Years).
 
 % Basic eligibility criteria
-meets_basic_criteria(StudentId, engineering) :-
-    academic_score(StudentId, board_12th, Percentage, _),
-    Percentage >= 60,
-    academic_score(StudentId, entrance, EntranceScore, _),
-    EntranceScore >= 80.
+meets_basic_criteria(engineering, Board_12th_Percentage, Entrance_Score, _) :-
+    Board_12th_Percentage >= 60,
+    Entrance_Score >= 80.
 
-meets_basic_criteria(StudentId, management) :-
-    academic_score(StudentId, graduation, GradPercentage, _),
-    GradPercentage >= 60,
-    (academic_score(StudentId, entrance, GmatScore, gmat), GmatScore >= 650;
-     academic_score(StudentId, entrance, CatPercentile, cat), CatPercentile >= 85).
+meets_basic_criteria(management, _, _, Grad_Percentage) :-
+    Grad_Percentage >= 60.
 
 % Program-specific criteria
-meets_specific_criteria(StudentId, Program) :-
-    program(Program, Stream, Specialization),
-    academic_score(StudentId, board_12th, Math, mathematics),
-    academic_score(StudentId, board_12th, Physics, physics),
-    (Stream = engineering ->
-        Math >= 70,
-        Physics >= 70;
-     Stream = management ->
-        check_work_experience(StudentId)).
+meets_specific_criteria(engineering, Math_Score, Physics_Score, _, _) :-
+    Math_Score >= 70,
+    Physics_Score >= 70.
+
+meets_specific_criteria(management, _, _, Work_Exp_Years, Work_Domain) :-
+    check_work_experience(Work_Exp_Years, Work_Domain).
 
 % Special requirements for different specializations
-meets_special_requirements(StudentId, computer_science) :-
-    academic_score(StudentId, board_12th, CS, computer_science),
-    CS >= 75.
+meets_special_requirements(computer_science, _, CS_Score, _) :-
+    CS_Score >= 75.
 
-meets_special_requirements(StudentId, artificial_intelligence) :-
-    academic_score(StudentId, board_12th, Math, mathematics),
-    Math >= 80.
+meets_special_requirements(artificial_intelligence, Math_Score, _, _) :-
+    Math_Score >= 80.
 
-meets_special_requirements(StudentId, analytics) :-
-    academic_score(StudentId, board_12th, Math, mathematics),
-    Math >= 75,
-    work_experience(StudentId, Years, _),
-    Years >= 1.
+meets_special_requirements(analytics, Math_Score, _, Work_Exp_Years) :-
+    Math_Score >= 75,
+    Work_Exp_Years >= 1.
+
+meets_special_requirements(robotics, Math_Score, _, _) :-
+    Math_Score >= 75.
+
+meets_special_requirements(technology, _, _, _).
+meets_special_requirements(finance, _, _, _).
 
 % Work experience requirements
-check_work_experience(StudentId) :-
-    work_experience(StudentId, Years, Domain),
-    (program(_, management, technology) -> 
-        Years >= 2,
-        tech_domain(Domain);
-     program(_, management, finance) ->
-        Years >= 1;
-     Years >= 0).
+check_work_experience(Years, Domain) :-
+    (tech_domain(Domain) -> Years >= 2;
+     Years >= 1).
 
 tech_domain(software_development).
 tech_domain(data_science).
 tech_domain(cloud_computing).
 
 % Lateral entry rules
-eligible_for_lateral_entry(StudentId, Program) :-
+eligible_for_lateral_entry(Program, GradPercentage, GradStream) :-
     program(Program, Stream, _),
-    academic_score(StudentId, graduation, GradPercentage, GradStream),
     GradPercentage >= 70,
     compatible_streams(GradStream, Stream).
 
@@ -146,12 +127,11 @@ compatible_streams(diploma_cs, computer_science).
 compatible_streams(diploma_ec, artificial_intelligence).
 compatible_streams(btech, management).
 
-% Quota and seat allocation
-has_quota_eligibility(StudentId, Quota) :-
-    student_category(StudentId, Category),
-    quota_percentage(Category, Quota),
-    meets_quota_criteria(StudentId, Category).
+% Quota eligibility
+has_quota_eligibility(Category, Quota) :-
+    quota_percentage(Category, Quota).
 
+% Quota percentages
 quota_percentage(general, 0).
 quota_percentage(sc, 15).
 quota_percentage(st, 7.5).
@@ -196,11 +176,14 @@ quota_percentage(obc, 27).
     const { name, arguments: args } = message.function_call;
     if (name === 'execute_prolog_query') {
       const query = JSON.parse(args).query;
+      console.log('Prolog Query:', query);
       let queryResult;
       try {
         queryResult = await executePrologQuery(query);
+        console.log('Prolog Result:', queryResult);
       } catch (error) {
         queryResult = `Error executing Prolog query: ${error.message}`;
+        console.error('Prolog Error:', error);
       }
 
       const followUpResponse = await openai.chat.completions.create({
@@ -211,7 +194,7 @@ quota_percentage(obc, 27).
           {
             role: 'function',
             name: 'execute_prolog_query',
-            content: queryResult,
+            content: JSON.stringify({ result: queryResult }),
           },
         ],
       });
@@ -224,13 +207,15 @@ quota_percentage(obc, 27).
 }
 
 async function executePrologQuery(query) {
-  // This is a placeholder. In a real application, you would call your Prolog engine here.
-  // For now, we'll simulate some responses.
-  if (query.includes('program')) {
-    return 'program(engineering, btech_cs, "B.Tech Computer Science").';
-  } else if (query.includes('fees')) {
-    return 'fees(btech_cs, 12000).';
-  } else {
-    return 'No results found.';
+  console.log('Executing Prolog Query:', query);
+  try {
+    // Ensure the query ends with a period
+    const formattedQuery = query.trim().endsWith('.') ? query : query + '.';
+    const result = await queryProlog(formattedQuery);
+    console.log('Prolog Query Result:', result);
+    return result || 'No results found.';
+  } catch (error) {
+    console.error('Prolog Query Error:', error);
+    return `Error executing Prolog query: ${error.message}`;
   }
 }
