@@ -6,19 +6,24 @@
   let userQuestion = '';
   let chatHistory = [];
   let isLoading = false;
+  let chatContainer;
 
-  onMount(async () => {
-    // Any initialization code if needed
+  onMount(() => {
+    scrollToBottom();
   });
 
   async function handleSubmit() {
     if (!userQuestion.trim()) return;
     isLoading = true;
     chatHistory = [...chatHistory, { role: 'user', content: userQuestion }];
+    const currentQuestion = userQuestion;
+    userQuestion = ''; // Clear the input immediately
+    scrollToBottom();
 
     try {
-      const aiResponse = await processConversation(userQuestion, chatHistory);
+      const aiResponse = await processConversation(currentQuestion, chatHistory);
       chatHistory = [...chatHistory, { role: 'assistant', content: aiResponse }];
+      scrollToBottom();
     } catch (error) {
       console.error(error);
       chatHistory = [
@@ -26,13 +31,21 @@
         { role: 'assistant', content: `An error occurred: ${error.message}. Please try again.` },
       ];
     } finally {
-      userQuestion = '';
       isLoading = false;
+      scrollToBottom();
     }
   }
 
   function renderMarkdown(text) {
     return marked(text);
+  }
+
+  function scrollToBottom() {
+    setTimeout(() => {
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+    }, 0);
   }
 </script>
 
@@ -46,11 +59,11 @@
       </h1>
       
       <div class="box chat-box">
-        <div class="content chat-content">
+        <div class="content chat-content" bind:this={chatContainer}>
           {#each chatHistory as chat}
             <div class="message {chat.role === 'user' ? 'is-primary' : 'is-info'}">
               <div class="message-header">
-                <p>{chat.role === 'user' ? '👤 You' : '🤖 AI'}</p>
+                <p>{chat.role === 'user' ? '👨‍🎓 You' : '🤖 AI'}</p>
               </div>
               <div class="message-body">
                 {@html renderMarkdown(chat.content)}
@@ -70,7 +83,7 @@
               type="text" 
               bind:value={userQuestion} 
               placeholder="🤔 Ask a question..." 
-              on:keydown={(e) => e.key === 'Enter' && handleSubmit()}
+              on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
             >
           </div>
           <div class="control">
