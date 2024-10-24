@@ -1,47 +1,38 @@
 <script>
   import { onMount } from 'svelte';
-  import { initializeProlog, queryProlog } from '$lib/prolog';
-  import { getPrologQuery, processOpenAIResponse } from '$lib/openai';
+  import { processConversation } from '$lib/openai';
+  import { marked } from 'marked';
 
   let userQuestion = '';
   let chatHistory = [];
   let isLoading = false;
 
   onMount(async () => {
-    await initializeProlog();
+    // Any initialization code if needed
   });
 
   async function handleSubmit() {
     if (!userQuestion.trim()) return;
     isLoading = true;
-    chatHistory = [...chatHistory, { sender: 'User', message: userQuestion }];
+    chatHistory = [...chatHistory, { role: 'user', content: userQuestion }];
 
     try {
-      const prologQuery = await getPrologQuery(userQuestion);
-      console.log('Generated Prolog Query:', prologQuery);
-
-      let prologResult;
-      try {
-        prologResult = await queryProlog(prologQuery);
-        console.log('Prolog Results:', prologResult);
-      } catch (prologError) {
-        prologResult = `Error executing Prolog query: ${prologError.message}`;
-        console.error('Prolog Error:', prologError);
-      }
-
-      const openAIResponse = await processOpenAIResponse(userQuestion, prologQuery, prologResult);
-
-      chatHistory = [...chatHistory, { sender: 'Bot', message: openAIResponse }];
+      const aiResponse = await processConversation(userQuestion, chatHistory);
+      chatHistory = [...chatHistory, { role: 'assistant', content: aiResponse }];
     } catch (error) {
       console.error(error);
       chatHistory = [
         ...chatHistory,
-        { sender: 'Bot', message: `An error occurred: ${error.message}. Please try again.` },
+        { role: 'assistant', content: `An error occurred: ${error.message}. Please try again.` },
       ];
     } finally {
       userQuestion = '';
       isLoading = false;
     }
+  }
+
+  function renderMarkdown(text) {
+    return marked(text);
   }
 </script>
 
@@ -49,7 +40,7 @@
   <section class="section">
     <div class="container">
       <h1 class="title is-1 has-text-centered mb-6 has-text-white">
-        🧠 Neuro Symbolic AI Agent
+        🧠💻 Neuro Symbolic AI Agent 🤖🔬
         <br>
         <span class="subtitle is-3 has-text-white">(Prolog + LLM)</span>
       </h1>
@@ -57,12 +48,12 @@
       <div class="box chat-box">
         <div class="content chat-content">
           {#each chatHistory as chat}
-            <div class="message {chat.sender === 'User' ? 'is-primary' : 'is-info'}">
+            <div class="message {chat.role === 'user' ? 'is-primary' : 'is-info'}">
               <div class="message-header">
-                <p>{chat.sender === 'User' ? '👤 You' : '🤖 AI'}</p>
+                <p>{chat.role === 'user' ? '👤 You' : '🤖 AI'}</p>
               </div>
               <div class="message-body">
-                {chat.message}
+                {@html renderMarkdown(chat.content)}
               </div>
             </div>
           {/each}
@@ -159,5 +150,48 @@
 
   .message-body {
     border-radius: 0 0 10px 10px;
+  }
+
+  :global(.message-body pre) {
+    background-color: #f5f5f5;
+    color: #4a4a4a;
+    font-size: 0.875em;
+    overflow-x: auto;
+    padding: 1.25rem 1.5rem;
+    white-space: pre;
+    word-wrap: normal;
+  }
+
+  :global(.message-body code) {
+    background-color: #f5f5f5;
+    color: #da1039;
+    font-size: 0.875em;
+    font-weight: normal;
+    padding: 0.25em 0.5em 0.25em;
+  }
+
+  :global(.message-body ul) {
+    list-style-type: disc;
+    padding-left: 2em;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+
+  :global(.message-body ol) {
+    list-style-type: decimal;
+    padding-left: 2em;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+
+  :global(.message-body a) {
+    color: #3273dc;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  :global(.message-body a:hover) {
+    color: #363636;
+    text-decoration: underline;
   }
 </style>
