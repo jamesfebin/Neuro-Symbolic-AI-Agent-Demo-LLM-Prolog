@@ -208,6 +208,7 @@ export async function processOpenAIResponse(userQuestion, prologQuery, prologRes
         1. The user's original question
         2. The Prolog query that was generated
         3. The result of executing the Prolog query
+        4. Assume the person asking the question doesn't have student id, so you will have to ask information about the student that's required in defining the student.
         
         If there was an error in executing the Prolog query, explain the error in simple terms and suggest a way to rephrase the question. Remeber don't use prolog variable jargons with the user, write in conversational language when asking for information. Assume currency in USD.
         
